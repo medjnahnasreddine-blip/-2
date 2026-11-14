@@ -1,0 +1,1166 @@
+```html
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="عداد المرور UVP">
+    <title>تطبيق العدّ المروري الميداني (06:00 - 18:00) | UVP & LOS</title>
+    
+    <!-- تضمين Manifest ديناميكي لدعم التثبيت كتطبيق PWA -->
+    <link id="pwa-manifest" rel="manifest">
+
+    <!-- استيراد خط Cairo للواجهة العربية الاحترافية -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- استيراد Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- استيراد Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- استيراد أيقونات Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f1f5f9;
+            padding-bottom: 5.5rem; /* مساحة لشريط التنقل السفلي */
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* منع التمرير الأفقي غير المرغوب */
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        /* تحسين استجابة الأزرار اللمسية في الميدان */
+        .touch-btn:active {
+            transform: scale(0.95);
+        }
+        .transition-smooth {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        /* إخفاء أسهم حقول الأرقام لتوفير مساحة في الجدول */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased select-none">
+
+    <!-- الشريط العلوي للتطبيق (App Bar) -->
+    <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md border-b border-slate-800">
+        <div class="max-w-5xl mx-auto px-3 sm:px-6 py-3">
+            <div class="flex items-center justify-between gap-2">
+                <!-- اسم المحور قابل للتعديل -->
+                <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                    <div class="bg-brand-600 p-2 rounded-xl shrink-0 shadow-inner">
+                        <i data-lucide="radar" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5">
+                            <input type="text" id="axis-name" value="محور وسط مدينة برج بونعامة" onchange="saveState()"
+                                class="bg-transparent text-white font-bold text-sm sm:text-base border-b border-dashed border-slate-600 focus:border-brand-400 outline-none w-full truncate pb-0.5"
+                                title="انقر لتعديل اسم المحور أو نقطة العدّ">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                        </div>
+                        <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                            <span class="inline-flex items-center gap-1 text-emerald-400 font-semibold">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                حفظ تلقائي
+                            </span>
+                            <span>•</span>
+                            <span>06:00 - 18:00 (48 فترة)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- أزرار الإجراءات السريعة -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="openInstallModal()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-400 border border-slate-700 transition-smooth" title="تثبيت التطبيق على الهاتف">
+                        <i data-lucide="smartphone" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                    </button>
+                    <button onclick="loadRealisticDaySample()" class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-xs font-bold flex items-center gap-1 transition-smooth" title="ملء بيانات يوم كامل للتجربة">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">بيانات تجريبية</span>
+                    </button>
+                    <button onclick="openResetModal()" class="p-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-rose-400 border border-slate-700 transition-smooth" title="تصفير العداد">
+                        <i data-lucide="trash-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- تبويبات التنقل العلوية للشاشات المتوسطة والكبيرة -->
+            <nav class="hidden md:flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
+                <button onclick="switchTab('counter')" id="top-tab-counter" class="flex-1 py-2 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-brand-600 text-white transition-smooth">
+                    <i data-lucide="hand-metal" class="w-4 h-4"></i>
+                    <span>1. العدّ الميداني المباشر</span>
+                </button>
+                <button onclick="switchTab('table')" id="top-tab-table" class="flex-1 py-2 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-300 hover:bg-slate-800 transition-smooth">
+                    <i data-lucide="table-2" class="w-4 h-4"></i>
+                    <span>2. الجدول الشامل (06:00 - 18:00)</span>
+                </button>
+                <button onclick="switchTab('analysis')" id="top-tab-analysis" class="flex-1 py-2 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-300 hover:bg-slate-800 transition-smooth">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                    <span>3. التحليل الهندسي و LOS</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- إشعار منبثق (Toast) -->
+    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 -translate-y-10 opacity-0 transition-smooth pointer-events-none w-11/12 max-w-sm">
+        <div class="bg-slate-900/95 backdrop-blur text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-center">
+            <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+            <span id="toast-msg">تم الحفظ بنجاح</span>
+        </div>
+    </div>
+
+    <!-- المحتوى الرئيسي للتطبيق -->
+    <main class="max-w-5xl mx-auto px-3 sm:px-6 pt-4">
+
+        <!-- ========================================================= -->
+        <!-- الواجهة 1: العدّ الميداني المباشر (Live Field Counter) -->
+        <!-- ========================================================= -->
+        <section id="view-counter" class="space-y-4">
+            
+            <!-- بطاقة اختيار الفترة الزمنية ومؤشر UVP الفوري -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex-1">
+                        <label for="period-selector" class="block text-xs font-bold text-slate-500 mb-1">الفترة الزمنية الحالية (كل 15 دقيقة):</label>
+                        <div class="flex items-center gap-2">
+                            <button onclick="changePeriodStep(-1)" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 touch-btn" title="الفترة السابقة">
+                                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                            </button>
+                            <select id="period-selector" onchange="onPeriodSelectChange()" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm sm:text-base font-extrabold text-slate-900 focus:ring-2 focus:ring-brand-500 outline-none">
+                                <!-- يتم ملؤه بـ 48 فترة من 06:00 إلى 18:00 -->
+                            </select>
+                            <button onclick="changePeriodStep(1)" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 touch-btn" title="الفترة التالية">
+                                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                        <button onclick="selectCurrentRealTimePeriod()" class="flex items-center gap-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 px-3 py-2 rounded-xl text-xs font-bold transition-smooth touch-btn">
+                            <i data-lucide="clock" class="w-4 h-4"></i>
+                            <span>الوقت الحالي</span>
+                        </button>
+                        <div class="bg-slate-900 text-white px-4 py-2 rounded-xl text-left">
+                            <span class="block text-[10px] text-slate-400">مجموع الفترة</span>
+                            <div class="flex items-baseline gap-1">
+                                <span id="live-period-uvp" class="text-xl font-black text-brand-400">0.0</span>
+                                <span class="text-[11px] font-bold text-slate-300">UVP</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- أزرار العدّ اللمسية الكبيرة للأصناف الخمسة -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="live-counter-cards">
+                <!-- يتم توليد بطاقات الأصناف الخمسة ديناميكياً -->
+            </div>
+
+            <!-- شريط ملخص سريع أسفل العداد -->
+            <div class="bg-white rounded-2xl border border-slate-200/80 p-3.5 flex items-center justify-between text-xs sm:text-sm">
+                <div class="flex items-center gap-2 text-slate-600 font-semibold">
+                    <i data-lucide="layers" class="w-4 h-4 text-brand-600"></i>
+                    <span>إجمالي المركبات في هذه الفترة:</span>
+                </div>
+                <span id="live-period-vehicles" class="font-extrabold text-slate-900 text-base">0 مركبة</span>
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- الواجهة 2: الجدول الشامل (06:00 - 18:00 / 48 فترة) -->
+        <!-- ========================================================= -->
+        <section id="view-table" class="hidden space-y-4">
+            
+            <!-- شريط الفلترة والملخص السريع -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-extrabold text-slate-900">سجل العدّ اليومي الشامل (12 ساعة)</h2>
+                    <p class="text-xs text-slate-500">يمكنك تعديل أي رقم مباشرة؛ يُحسب التدفق الساعي المتراكم (4 فترات) تلقائياً.</p>
+                </div>
+
+                <!-- أزرار تصفية الفترة الصباحية / المسائية / الكل -->
+                <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200/70 self-start sm:self-auto">
+                    <button onclick="setTableFilter('all')" id="filter-all" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm transition-smooth">
+                        الكل (48)
+                    </button>
+                    <button onclick="setTableFilter('morning')" id="filter-morning" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition-smooth">
+                        الصباح (06-12)
+                    </button>
+                    <button onclick="setTableFilter('evening')" id="filter-evening" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition-smooth">
+                        المساء (12-18)
+                    </button>
+                </div>
+            </div>
+
+            <!-- مفتاح الألوان للذروات -->
+            <div class="flex flex-wrap items-center gap-3 text-[11px] font-bold px-1">
+                <span class="inline-flex items-center gap-1.5 bg-rose-100 text-rose-800 px-2.5 py-1 rounded-lg border border-rose-200">
+                    <span class="w-2 h-2 rounded-full bg-rose-600"></span>
+                    الذروة القصوى لليوم (Qp Max)
+                </span>
+                <span class="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg border border-amber-200">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    ذروة الفترة (صباحية / مسائية)
+                </span>
+            </div>
+
+            <!-- الجدول التفاعلي -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="overflow-x-auto max-h-[65vh]">
+                    <table class="w-full text-right border-collapse min-w-[680px]">
+                        <thead class="sticky top-0 z-10 bg-slate-900 text-white text-xs font-bold">
+                            <tr>
+                                <th class="py-3 px-3">الفترة (15 د)</th>
+                                <th class="py-3 px-1.5 text-center">سيارة<br><span class="text-[10px] font-normal text-slate-400">VL</span></th>
+                                <th class="py-3 px-1.5 text-center">نفعية<br><span class="text-[10px] font-normal text-slate-400">Fourgon</span></th>
+                                <th class="py-3 px-1.5 text-center">حافلة<br><span class="text-[10px] font-normal text-slate-400">Bus</span></th>
+                                <th class="py-3 px-1.5 text-center">شاحنة<br><span class="text-[10px] font-normal text-slate-400">PL</span></th>
+                                <th class="py-3 px-1.5 text-center">دراجة<br><span class="text-[10px] font-normal text-slate-400">Moto</span></th>
+                                <th class="py-3 px-2 text-center bg-slate-800">مجموع<br><span class="text-[10px] text-brand-400">UVP / 15m</span></th>
+                                <th class="py-3 px-3 text-center bg-brand-900">التدفق الساعي<br><span class="text-[10px] text-brand-300">UVP / h (متراكم)</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="full-table-body" class="divide-y divide-slate-200 text-xs sm:text-sm">
+                            <!-- يتم توليد الصفوف الـ 48 عبر JS -->
+                        </tbody>
+                        <tfoot class="sticky bottom-0 bg-slate-100 border-t-2 border-slate-300 font-extrabold text-xs sm:text-sm text-slate-900">
+                            <tr>
+                                <td class="py-3 px-3">إجمالي 12 ساعة</td>
+                                <td id="ft-vl" class="py-3 px-1.5 text-center">0</td>
+                                <td id="ft-fourgon" class="py-3 px-1.5 text-center">0</td>
+                                <td id="ft-bus" class="py-3 px-1.5 text-center">0</td>
+                                <td id="ft-pl" class="py-3 px-1.5 text-center">0</td>
+                                <td id="ft-moto" class="py-3 px-1.5 text-center">0</td>
+                                <td id="ft-uvp" class="py-3 px-2 text-center text-brand-700">0.0</td>
+                                <td id="ft-max-qp" class="py-3 px-3 text-center bg-brand-600 text-white">ذروة: 0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- الواجهة 3: التحليل الهندسي والنتائج (Analysis & LOS) -->
+        <!-- ========================================================= -->
+        <section id="view-analysis" class="hidden space-y-5">
+
+            <!-- بطاقة ملخص الذروات الثلاث (القصوى، الصباحية، المسائية) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <!-- الذروة القصوى لليوم -->
+                <div class="bg-slate-900 text-white rounded-2xl p-4 shadow-sm border border-slate-800 relative overflow-hidden">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-rose-400">ساعة الذروة القصوى (Qp)</span>
+                        <span id="an-peak-time" class="text-[11px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-md font-bold">--:--</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-1.5">
+                        <span id="an-peak-qp" class="text-3xl font-black text-white">0</span>
+                        <span class="text-xs font-bold text-slate-400">UVP/h</span>
+                    </div>
+                    <div class="mt-2 text-[11px] text-slate-300 flex items-center justify-between border-t border-slate-800 pt-2">
+                        <span>معامل الذروة (PHF):</span>
+                        <span id="an-phf" class="font-extrabold text-brand-400">0.00</span>
+                    </div>
+                </div>
+
+                <!-- ذروة الفترة الصباحية -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-amber-700 flex items-center gap-1">
+                            <i data-lucide="sunrise" class="w-4 h-4 text-amber-500"></i>
+                            الذروة الصباحية
+                        </span>
+                        <span id="an-morning-time" class="text-[11px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md font-bold">--:--</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-1.5">
+                        <span id="an-morning-qp" class="text-2xl font-black text-slate-900">0</span>
+                        <span class="text-xs font-bold text-slate-500">UVP/h</span>
+                    </div>
+                    <p class="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2">الفترة من 06:00 إلى 12:00</p>
+                </div>
+
+                <!-- ذروة الفترة المسائية -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-indigo-700 flex items-center gap-1">
+                            <i data-lucide="sunset" class="w-4 h-4 text-indigo-500"></i>
+                            الذروة المسائية
+                        </span>
+                        <span id="an-evening-time" class="text-[11px] bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md font-bold">--:--</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-1.5">
+                        <span id="an-evening-qp" class="text-2xl font-black text-slate-900">0</span>
+                        <span class="text-xs font-bold text-slate-500">UVP/h</span>
+                    </div>
+                    <p class="mt-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2">الفترة من 12:00 إلى 18:00</p>
+                </div>
+            </div>
+
+            <!-- بطاقة تشخيص التشبع ومستوى الخدمة LOS -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-100">
+                    <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="gauge" class="w-5 h-5 text-brand-600"></i>
+                        <span>التشخيص الهندسي ومستوى الخدمة (LOS)</span>
+                    </h3>
+                    <span id="an-los-badge" class="px-3.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800">
+                        LOS A
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70">
+                        <span class="block text-xs font-semibold text-slate-500">السعة العملية (C)</span>
+                        <span id="an-capacity" class="text-xl font-black text-brand-700 mt-1 block">840 UVP/h</span>
+                    </div>
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70">
+                        <span class="block text-xs font-semibold text-slate-500">نسبة التشبع (S = Qp/C)</span>
+                        <span id="an-saturation" class="text-xl font-black text-slate-900 mt-1 block">0.0%</span>
+                    </div>
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 col-span-2 sm:col-span-1">
+                        <span class="block text-xs font-semibold text-slate-500">إجمالي الحركة (12 ساعة)</span>
+                        <span id="an-total-12h" class="text-xl font-black text-slate-900 mt-1 block">0 UVP</span>
+                    </div>
+                </div>
+
+                <!-- شريط مؤشر التشبع -->
+                <div class="mt-5">
+                    <div class="w-full h-4 bg-slate-200 rounded-full overflow-hidden p-0.5">
+                        <div id="an-sat-bar" class="h-full rounded-full transition-smooth bg-emerald-500" style="width: 0%;"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400 mt-1">
+                        <span>0% (A)</span>
+                        <span>35% (B)</span>
+                        <span>55% (C)</span>
+                        <span>75% (D)</span>
+                        <span>90% (E)</span>
+                        <span>100%+ (F)</span>
+                    </div>
+                </div>
+
+                <!-- التوصية الهندسية -->
+                <div id="an-rec-box" class="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
+                    <h4 id="an-rec-title" class="text-sm font-extrabold">حركة مرورية حرة (مستوى الخدمة A)</h4>
+                    <p id="an-rec-text" class="text-xs leading-relaxed mt-1 opacity-90">
+                        ابدأ بإدخال بيانات العدّ في الميدان أو حمّل البيانات التجريبية لمعاينة التوصيات الهندسية.
+                    </p>
+                </div>
+            </div>
+
+            <!-- إعدادات خصائص الطريق ومعاملات التضاريس -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                    <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="sliders-horizontal" class="w-5 h-5 text-brand-600"></i>
+                        <span>خصائص الطريق ومعاملات التحويل</span>
+                    </h3>
+                    <!-- زر التضاريس -->
+                    <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200/70 self-start">
+                        <button type="button" id="btn-terrain-flat" onclick="setTerrain('flat')" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 transition-smooth">
+                            مسطح (Plat)
+                        </button>
+                        <button type="button" id="btn-terrain-mountain" onclick="setTerrain('mountain')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm transition-smooth">
+                            جبلي / منحدر (برج بونعامة)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">السعة النظرية للمسلك الواحد (UVP/h)</label>
+                        <input type="number" id="cfg-base-cap" value="1400" step="50" onchange="onConfigChange()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">عدد المسالك في الاتجاه المدروس</label>
+                        <select id="cfg-lanes" onchange="onConfigChange()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="1" selected>1 مسلك (اتجاه واحد أو طريق ذو مسلكين متعاكسين)</option>
+                            <option value="2">2 مسلكين في نفس الاتجاه</option>
+                            <option value="3">3 مسالك في نفس الاتجاه</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- العوائق الميدانية -->
+                <div class="mt-4 space-y-2">
+                    <span class="block text-xs font-bold text-slate-700">العوائق الميدانية المخفضة للسعة:</span>
+                    <label class="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <div class="flex items-center gap-2.5">
+                            <input type="checkbox" id="cfg-obs-parking" checked onchange="onConfigChange()" class="w-4 h-4 text-brand-600 rounded">
+                            <span class="text-xs sm:text-sm font-bold text-slate-800">ركن جانبي عشوائي (Stationnement latéral)</span>
+                        </div>
+                        <span class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">× 0.75</span>
+                    </label>
+
+                    <label class="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <div class="flex items-center gap-2.5">
+                            <input type="checkbox" id="cfg-obs-narrow" onchange="onConfigChange()" class="w-4 h-4 text-brand-600 rounded">
+                            <span class="text-xs sm:text-sm font-bold text-slate-800">ضيق المسلك أقل من 3.5م (Largeur réduite)</span>
+                        </div>
+                        <span class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">× 0.85</span>
+                    </label>
+
+                    <label class="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <div class="flex items-center gap-2.5">
+                            <input type="checkbox" id="cfg-obs-intersections" checked onchange="onConfigChange()" class="w-4 h-4 text-brand-600 rounded">
+                            <span class="text-xs sm:text-sm font-bold text-slate-800">كثرة التقاطعات وعبور الراجلين</span>
+                        </div>
+                        <span class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">× 0.80</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- الرسم البياني لتطور التدفق على مدار 12 ساعة -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+                <h3 class="text-sm sm:text-base font-extrabold text-slate-900 mb-3 flex items-center gap-2">
+                    <i data-lucide="trending-up" class="w-5 h-5 text-brand-600"></i>
+                    <span>منحنى التدفق المروري اليومي (06:00 صباحاً - 18:00 مساءً)</span>
+                </h3>
+                <div class="relative h-64 sm:h-72 w-full">
+                    <canvas id="dailyTrafficChart"></canvas>
+                </div>
+            </div>
+
+            <!-- بطاقة التصدير والتوثيق في المذكرة -->
+            <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-sm">
+                <h3 class="text-sm sm:text-base font-extrabold mb-1">تصدير البيانات وتوثيق المذكرة</h3>
+                <p class="text-xs text-slate-400 mb-4">استخرج جدول الـ 48 فترة بصيغة Excel أو انسخ الفقرة التحليلية الجاهزة لفصل الدراسة التطبيقية.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button onclick="copyAcademicReport()" class="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm transition-smooth touch-btn">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span>نسخ التقرير للمذكرة</span>
+                    </button>
+                    <button onclick="exportFullCSV()" class="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl text-xs sm:text-sm transition-smooth touch-btn">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400"></i>
+                        <span>تصدير Excel (48 فترة CSV)</span>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- شريط التنقل السفلي للهواتف (Bottom Navigation Bar) -->
+    <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+        <div class="grid grid-cols-3 h-16">
+            <button onclick="switchTab('counter')" id="bot-tab-counter" class="flex flex-col items-center justify-center gap-1 text-brand-600 font-extrabold transition-smooth">
+                <i data-lucide="hand-metal" class="w-5 h-5"></i>
+                <span class="text-[11px]">العدّ المباشر</span>
+            </button>
+            <button onclick="switchTab('table')" id="bot-tab-table" class="flex flex-col items-center justify-center gap-1 text-slate-500 font-semibold transition-smooth">
+                <i data-lucide="table-2" class="w-5 h-5"></i>
+                <span class="text-[11px]">الجدول (48)</span>
+            </button>
+            <button onclick="switchTab('analysis')" id="bot-tab-analysis" class="flex flex-col items-center justify-center gap-1 text-slate-500 font-semibold transition-smooth">
+                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                <span class="text-[11px]">التحليل و LOS</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- نافذة دليل التثبيت كتطبيق على الهاتف (PWA Install Modal) -->
+    <div id="install-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="smartphone" class="w-5 h-5 text-brand-600"></i>
+                    <span>تثبيت الأداة كتطبيق على هاتفك</span>
+                </h3>
+                <button onclick="closeModal('install-modal')" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="mt-4 space-y-3 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                <p class="font-semibold text-slate-800">للاستفادة من التطبيق في الميدان بملء الشاشة وبدون إنترنت (حفظ تلقائي):</p>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                    <p><strong class="text-slate-900">1. على هواتف Android (متصفح Chrome):</strong><br>
+                    اضغط على أيقونة النقاط الثلاث <span class="font-bold text-slate-900">(⋮)</span> في أعلى المتصفح، ثم اختر <span class="font-bold text-brand-700">"الإضافة إلى الشاشة الرئيسية" (Add to Home screen)</span> أو <span class="font-bold text-brand-700">"تثبيت التطبيق"</span>.</p>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                    <p><strong class="text-slate-900">2. على هواتف iPhone (متصفح Safari):</strong><br>
+                    اضغط على زر المشاركة <span class="font-bold text-slate-900">(Share)</span> في الأسفل، ثم مرر واختر <span class="font-bold text-brand-700">"إضافة إلى الصفحة الرئيسية" (Add to Home Screen)</span>.</p>
+                </div>
+            </div>
+            <button onclick="closeModal('install-modal')" class="mt-5 w-full bg-slate-900 text-white font-bold py-2.5 rounded-xl text-sm">
+                فهمت، إغلاق
+            </button>
+        </div>
+    </div>
+
+    <!-- نافذة تأكيد تصفير البيانات (بدل confirm) -->
+    <div id="reset-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center">
+            <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-base font-extrabold text-slate-900">تصفير جميع بيانات اليوم؟</h3>
+            <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">سيتم مسح جميع الأرقام المسجلة في الفترات الـ 48 (من 06:00 إلى 18:00). تأكد من تصدير ملف CSV قبل التصفير إذا كنت بحاجة إليها.</p>
+            <div class="grid grid-cols-2 gap-2.5 mt-5">
+                <button onclick="closeModal('reset-modal')" class="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm">
+                    إلغاء
+                </button>
+                <button onclick="confirmResetData()" class="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm">
+                    نعم، صفّر الكل
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. إعداد PWA Manifest & Service Worker افتراضي للعمل بدون إنترنت
+        // =========================================================================
+        (function setupPWA() {
+            const manifest = {
+                name: "تطبيق العدّ المروري الميداني UVP",
+                short_name: "عداد المرور",
+                start_url: ".",
+                display: "standalone",
+                background_color: "#0f172a",
+                theme_color: "#0f172a",
+                dir: "rtl",
+                lang: "ar",
+                icons: [{
+                    src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="#0284c7"/><text x="96" y="118" font-family="sans-serif" font-size="72" font-weight="bold" fill="white" text-anchor="middle">UVP</text></svg>'),
+                    sizes: "192x192",
+                    type: "image/svg+xml"
+                }]
+            };
+            const stringManifest = JSON.stringify(manifest);
+            const blob = new Blob([stringManifest], { type: 'application/json' });
+            const manifestURL = URL.createObjectURL(blob);
+            document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
+        })();
+
+        // =========================================================================
+        // 2. المتغيرات وهيكلة البيانات (48 فترة من 06:00 إلى 18:00)
+        // =========================================================================
+        const STORAGE_KEY = 'traffic_uvp_app_v1_bordj_bounaama';
+
+        // توليد مصفوفة الـ 48 فترة زمنية (كل 15 دقيقة من 06:00 إلى 18:00)
+        function generateTimeSlots() {
+            const slots = [];
+            let hour = 6;
+            let minute = 0;
+            for (let i = 0; i < 48; i++) {
+                const startStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+                minute += 15;
+                if (minute === 60) {
+                    minute = 0;
+                    hour += 1;
+                }
+                const endStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+                slots.push({
+                    index: i,
+                    label: `${startStr} - ${endStr}`,
+                    start: startStr,
+                    end: endStr,
+                    vl: 0,       // سيارة سياحية
+                    fourgon: 0,  // مركبة نفعية
+                    bus: 0,      // حافلة
+                    pl: 0,       // شاحنة ثقيلة
+                    moto: 0      // دراجة
+                });
+            }
+            return slots;
+        }
+
+        // الحالة العامة للتطبيق
+        let appState = {
+            axisName: 'محور وسط مدينة برج بونعامة',
+            terrain: 'mountain', // 'mountain' or 'flat'
+            baseCap: 1400,
+            lanes: 1,
+            obsParking: true,
+            obsNarrow: false,
+            obsIntersections: true,
+            selectedPeriodIndex: 8, // 08:00 - 08:15 افتراضياً
+            slots: generateTimeSlots()
+        };
+
+        let tableFilter = 'all'; // 'all', 'morning', 'evening'
+        let dailyChart = null;
+        let analysisSummary = {};
+
+        // معاملات التحويل إلى UVP حسب التضاريس
+        function getCoefficients() {
+            if (appState.terrain === 'mountain') {
+                return { vl: 1.0, fourgon: 1.5, bus: 2.5, pl: 3.0, moto: 0.5 };
+            } else {
+                return { vl: 1.0, fourgon: 1.5, bus: 2.0, pl: 2.5, moto: 0.4 };
+            }
+        }
+
+        // تعريف أصناف المركبات للعداد اللمسي
+        const vehicleTypesMeta = [
+            { key: 'vl', name: 'سيارة سياحية', en: 'VL', icon: 'car', color: 'sky' },
+            { key: 'fourgon', name: 'مركبة نفعية', en: 'Fourgon', icon: 'truck', color: 'teal' },
+            { key: 'bus', name: 'حافلة نقل', en: 'Bus', icon: 'bus', color: 'amber' },
+            { key: 'pl', name: 'شاحنة ثقيلة', en: 'PL', icon: 'container', color: 'rose' },
+            { key: 'moto', name: 'دراجة نارية', en: 'Moto', icon: 'bike', color: 'indigo' }
+        ];
+
+        // =========================================================================
+        // 3. الحفظ والاسترجاع التلقائي (LocalStorage)
+        // =========================================================================
+        function saveState() {
+            appState.axisName = document.getElementById('axis-name').value || 'محور غير مسمى';
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            } catch (e) {
+                console.error('خطأ في الحفظ المحلي:', e);
+            }
+        }
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && Array.isArray(parsed.slots) && parsed.slots.length === 48) {
+                        appState = { ...appState, ...parsed };
+                    }
+                }
+            } catch (e) {
+                console.error('خطأ في استرجاع البيانات:', e);
+            }
+        }
+
+        // =========================================================================
+        // 4. إدارة التبويبات والتنقل (Tabs Navigation)
+        // =========================================================================
+        function switchTab(tabName) {
+            const views = ['counter', 'table', 'analysis'];
+            views.forEach(v => {
+                document.getElementById(`view-${v}`).classList.toggle('hidden', v !== tabName);
+                
+                // تحديث أزرار التبويب العلوية
+                const topBtn = document.getElementById(`top-tab-${v}`);
+                if (topBtn) {
+                    topBtn.className = (v === tabName)
+                        ? 'flex-1 py-2 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-brand-600 text-white transition-smooth shadow-sm'
+                        : 'flex-1 py-2 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-300 hover:bg-slate-800 transition-smooth';
+                }
+
+                // تحديث شريط التنقل السفلي
+                const botBtn = document.getElementById(`bot-tab-${v}`);
+                if (botBtn) {
+                    botBtn.className = (v === tabName)
+                        ? 'flex flex-col items-center justify-center gap-1 text-brand-600 font-extrabold transition-smooth bg-brand-50/50'
+                        : 'flex flex-col items-center justify-center gap-1 text-slate-500 font-semibold transition-smooth';
+                }
+            });
+
+            if (tabName === 'table') renderFullTable();
+            if (tabName === 'analysis') {
+                recalculateAll();
+                if (dailyChart) dailyChart.resize();
+            }
+        }
+
+        // =========================================================================
+        // 5. واجهة العداد الميداني المباشر (Live Field Counter)
+        // =========================================================================
+        function initPeriodSelector() {
+            const select = document.getElementById('period-selector');
+            select.innerHTML = '';
+            appState.slots.forEach((slot, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                const periodTag = idx < 24 ? 'صباحاً' : 'مساءً';
+                opt.textContent = `${slot.label} (${periodTag})`;
+                select.appendChild(opt);
+            });
+            select.value = appState.selectedPeriodIndex;
+        }
+
+        function onPeriodSelectChange() {
+            appState.selectedPeriodIndex = parseInt(document.getElementById('period-selector').value) || 0;
+            saveState();
+            renderLiveCounterCards();
+        }
+
+        function changePeriodStep(delta) {
+            const next = appState.selectedPeriodIndex + delta;
+            if (next >= 0 && next < 48) {
+                appState.selectedPeriodIndex = next;
+                document.getElementById('period-selector').value = next;
+                saveState();
+                renderLiveCounterCards();
+            }
+        }
+
+        function selectCurrentRealTimePeriod() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            if (h < 6 || h >= 18) {
+                showToast('الوقت الحالي خارج نطاق (06:00 - 18:00)');
+                return;
+            }
+            const index = ((h - 6) * 4) + Math.floor(m / 15);
+            appState.selectedPeriodIndex = index;
+            document.getElementById('period-selector').value = index;
+            saveState();
+            renderLiveCounterCards();
+            showToast(`تم الانتقال للفترة الحالية: ${appState.slots[index].label}`);
+        }
+
+        function renderLiveCounterCards() {
+            const container = document.getElementById('live-counter-cards');
+            const slot = appState.slots[appState.selectedPeriodIndex];
+            const coefs = getCoefficients();
+
+            container.innerHTML = '';
+
+            vehicleTypesMeta.forEach((v, idx) => {
+                const count = slot[v.key];
+                const coef = coefs[v.key];
+                const spanFull = (idx === 4) ? 'sm:col-span-2' : '';
+
+                const card = document.createElement('div');
+                card.className = `bg-white rounded-2xl shadow-sm border border-slate-200/90 p-3.5 sm:p-4 flex items-center justify-between gap-3 ${spanFull}`;
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                            <i data-lucide="${v.icon}" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm sm:text-base font-extrabold text-slate-900">${v.name} <span class="text-xs font-semibold text-slate-400">(${v.en})</span></h3>
+                            <span class="inline-block text-[11px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md mt-0.5">
+                                المعامل: × ${coef.toFixed(1)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 sm:gap-3">
+                        <button onclick="incrementVehicle('${v.key}', -1)" class="w-12 h-12 rounded-2xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 font-black text-xl flex items-center justify-center border border-slate-200 touch-btn transition-smooth" aria-label="إنقاص">
+                            -1
+                        </button>
+                        <div class="w-12 text-center">
+                            <span id="live-count-${v.key}" class="text-2xl sm:text-3xl font-black text-slate-900">${count}</span>
+                        </div>
+                        <button onclick="incrementVehicle('${v.key}', 1)" class="w-14 h-14 rounded-2xl bg-brand-600 hover:bg-brand-500 text-white font-black text-xl flex items-center justify-center shadow-md shadow-brand-600/20 touch-btn transition-smooth" aria-label="إضافة">
+                            +1
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            lucide.createIcons();
+            updateLivePeriodSummary();
+        }
+
+        function incrementVehicle(key, delta) {
+            const slot = appState.slots[appState.selectedPeriodIndex];
+            slot[key] = Math.max(0, (slot[key] || 0) + delta);
+            
+            // اهتزاز خفيف على الهواتف الداعمة عند الضغط
+            if (navigator.vibrate && delta > 0) {
+                navigator.vibrate(25);
+            }
+
+            const countEl = document.getElementById(`live-count-${key}`);
+            if (countEl) countEl.textContent = slot[key];
+
+            updateLivePeriodSummary();
+            saveState();
+            recalculateAll();
+        }
+
+        function updateLivePeriodSummary() {
+            const slot = appState.slots[appState.selectedPeriodIndex];
+            const coefs = getCoefficients();
+            const totalVehicles = slot.vl + slot.fourgon + slot.bus + slot.pl + slot.moto;
+            const totalUvp = (slot.vl * coefs.vl) + (slot.fourgon * coefs.fourgon) + (slot.bus * coefs.bus) + (slot.pl * coefs.pl) + (slot.moto * coefs.moto);
+
+            document.getElementById('live-period-uvp').textContent = totalUvp.toFixed(1);
+            document.getElementById('live-period-vehicles').textContent = `${totalVehicles} مركبة`;
+        }
+
+        // =========================================================================
+        // 6. الحساب الشامل للـ 48 فترة، التدفق المتراكم، والذروات
+        // =========================================================================
+        function recalculateAll() {
+            const coefs = getCoefficients();
+            const quarterUvps = [];
+            const rollingHourlyUvps = []; // التدفق الساعي المتراكم (مجموع 4 فترات متتالية)
+
+            let sumVl = 0, sumFourgon = 0, sumBus = 0, sumPl = 0, sumMoto = 0;
+            let totalDayUvp = 0;
+
+            // 1. حساب UVP لكل ربع ساعة
+            appState.slots.forEach((s, idx) => {
+                sumVl += s.vl;
+                sumFourgon += s.fourgon;
+                sumBus += s.bus;
+                sumPl += s.pl;
+                sumMoto += s.moto;
+
+                const qUvp = (s.vl * coefs.vl) + (s.fourgon * coefs.fourgon) + (s.bus * coefs.bus) + (s.pl * coefs.pl) + (s.moto * coefs.moto);
+                quarterUvps.push(qUvp);
+                totalDayUvp += qUvp;
+            });
+
+            // 2. حساب التدفق الساعي المتراكم (Rolling 1-Hour = مجموع الفترات [i-3, i-2, i-1, i])
+            let maxOverallQp = 0, maxOverallIdx = -1;
+            let maxMorningQp = 0, maxMorningIdx = -1;
+            let maxEveningQp = 0, maxEveningIdx = -1;
+
+            for (let i = 0; i < 48; i++) {
+                if (i < 3) {
+                    rollingHourlyUvps.push(null); // أول 3 فترات لم تكتمل ساعة كاملة بعد
+                } else {
+                    const hourFlow = quarterUvps[i] + quarterUvps[i - 1] + quarterUvps[i - 2] + quarterUvps[i - 3];
+                    rollingHourlyUvps.push(hourFlow);
+
+                    if (hourFlow > maxOverallQp) {
+                        maxOverallQp = hourFlow;
+                        maxOverallIdx = i;
+                    }
+                    // الفترة الصباحية: من 06:00 (index 0) إلى 12:00 (index 23)
+                    if (i <= 23 && hourFlow > maxMorningQp) {
+                        maxMorningQp = hourFlow;
+                        maxMorningIdx = i;
+                    }
+                    // الفترة المسائية: من 12:00 (index 24) إلى 18:00 (index 47)
+                    if (i >= 24 && hourFlow > maxEveningQp) {
+                        maxEveningQp = hourFlow;
+                        maxEveningIdx = i;
+                    }
+                }
+            }
+
+            // 3. حساب معامل ساعة الذروة PHF للساعة القصوى
+            let phf = 0;
+            let peakHourLabel = '--:--';
+            if (maxOverallIdx >= 3 && maxOverallQp > 0) {
+                const q15s = [
+                    quarterUvps[maxOverallIdx - 3],
+                    quarterUvps[maxOverallIdx - 2],
+                    quarterUvps[maxOverallIdx - 1],
+                    quarterUvps[maxOverallIdx]
+                ];
+                const maxQ15 = Math.max(...q15s);
+                phf = maxQ15 > 0 ? (maxOverallQp / (4 * maxQ15)) : 0;
+                peakHourLabel = `${appState.slots[maxOverallIdx - 3].start} - ${appState.slots[maxOverallIdx].end}`;
+            }
+
+            const morningPeakLabel = (maxMorningIdx >= 3 && maxMorningQp > 0)
+                ? `${appState.slots[maxMorningIdx - 3].start} - ${appState.slots[maxMorningIdx].end}`
+                : '--:--';
+
+            const eveningPeakLabel = (maxEveningIdx >= 3 && maxEveningQp > 0)
+                ? `${appState.slots[maxEveningIdx - 3].start} - ${appState.slots[maxEveningIdx].end}`
+                : '--:--';
+
+            // 4. حساب السعة العملية للطريق ونسبة التشبع
+            let reduction = 1.0;
+            if (appState.obsParking) reduction *= 0.75;
+            if (appState.obsNarrow) reduction *= 0.85;
+            if (appState.obsIntersections) reduction *= 0.80;
+
+            const practicalCapacity = Math.round(appState.baseCap * appState.lanes * reduction);
+            const saturation = practicalCapacity > 0 ? (maxOverallQp / practicalCapacity) * 100 : 0;
+            const losInfo = getLOSDiagnosis(saturation, maxOverallQp);
+
+            analysisSummary = {
+                quarterUvps,
+                rollingHourlyUvps,
+                maxOverallQp,
+                maxOverallIdx,
+                peakHourLabel,
+                maxMorningQp,
+                maxMorningIdx,
+                morningPeakLabel,
+                maxEveningQp,
+                maxEveningIdx,
+                eveningPeakLabel,
+                phf,
+                practicalCapacity,
+                saturation,
+                losInfo,
+                totalDayUvp,
+                totalsByType: { sumVl, sumFourgon, sumBus, sumPl, sumMoto }
+            };
+
+            updateAnalysisUI();
+        }
+
+        function getLOSDiagnosis(saturation, qp) {
+            if (qp === 0) {
+                return {
+                    grade: 'A',
+                    badge: 'bg-emerald-100 text-emerald-800',
+                    bar: 'bg-emerald-500',
+                    box: 'bg-slate-50 border-slate-200 text-slate-800',
+                    title: 'في انتظار بيانات العدّ الميداني',
+                    text: 'استخدم تبويب "العدّ المباشر" أو حمّل البيانات التجريبية لمعاينة التشخيص الهندسي ومستوى الخدمة.'
+                };
+            }
+            if (saturation <= 35) {
+                return {
+                    grade: 'A',
+                    badge: 'bg-emerald-100 text-emerald-800',
+                    bar: 'bg-emerald-500',
+                    box: 'bg-emerald-50 border-emerald-200 text-emerald-950',
+                    title: 'حركة مرورية حرة ومثالية (مستوى الخدمة A)',
+                    text: 'الطريق يستوعب التدفق بأريحية تامة طوال اليوم دون أي تأخير. يكفي الحفاظ على الصيانة والتشوير.'
+                };
+            } else if (saturation <= 55) {
+                return {
+                    grade: 'B',
+                    badge: 'bg-teal-100 text-teal-800',
+                    bar: 'bg-teal-500',
+                    box: 'bg-teal-50 border-teal-200 text-teal-950',
+                    title: 'حركة مستقرة ومريحة (مستوى الخدمة B)',
+                    text: 'انسيابية جيدة جداً للمركبات وحرية في المناورة حتى في أوقات الذروة.'
+                };
+            } else if (saturation <= 75) {
+                return {
+                    grade: 'C',
+                    badge: 'bg-sky-100 text-sky-800',
+                    bar: 'bg-sky-500',
+                    box: 'bg-sky-50 border-sky-200 text-sky-950',
+                    title: 'حركة مستقرة مع بداية تقييد في الذروة (مستوى الخدمة C)',
+                    text: 'الأداء مقبول إجمالاً، لكن يُنصح بتنظيم نقاط توقف حافلات النقل الحضري وتأمين ممرات الراجلين لتفادي التباطؤ.'
+                };
+            } else if (saturation <= 90) {
+                return {
+                    grade: 'D',
+                    badge: 'bg-amber-100 text-amber-800',
+                    bar: 'bg-amber-500',
+                    box: 'bg-amber-50 border-amber-200 text-amber-950',
+                    title: 'اقتراب من التشبع وبطء واضح (مستوى الخدمة D)',
+                    text: 'تتشكل طوابير انتظار خلال ساعة الذروة. يُوصى بمنع الركن العشوائي على جانبي المحور وتنظيم التقاطعات.'
+                };
+            } else if (saturation <= 100) {
+                return {
+                    grade: 'E',
+                    badge: 'bg-orange-100 text-orange-800',
+                    bar: 'bg-orange-600',
+                    box: 'bg-orange-50 border-orange-200 text-orange-950',
+                    title: 'تشبع حرج وعدم استقرار (مستوى الخدمة E)',
+                    text: 'المحور بلغ طاقته القصوى وأي توقف جانبي يسبب اختناقاً فورياً. يجب منع الوقوف كلياً وتحويل مسار الشاحنات.'
+                };
+            } else {
+                return {
+                    grade: 'F',
+                    badge: 'bg-rose-100 text-rose-800',
+                    bar: 'bg-rose-600',
+                    box: 'bg-rose-50 border-rose-200 text-rose-950',
+                    title: 'اختناق مروري حاد وتجاوز السعة (مستوى الخدمة F)',
+                    text: 'الطلب المروري يفوق السعة العملية للطريق (S > 100%). يتطلب مخطط السير تحويل الشارع إلى اتجاه واحد (Sens unique) وتوفير مواقف ركن خارج الطريق.'
+                };
+            }
+        }
+
+        // =========================================================================
+        // 7. عرض الجدول الشامل (48 فترة) مع التمييز البصري للذروات
+        // =========================================================================
+        function setTableFilter(filter) {
+            tableFilter = filter;
+            ['all', 'morning', 'evening'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                btn.className = (f === filter)
+                    ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm transition-smooth'
+                    : 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition-smooth';
+            });
+            renderFullTable();
+        }
+
+        function renderFullTable() {
+            recalculateAll();
+            const tbody = document.getElementById('full-table-body');
+            tbody.innerHTML = '';
+
+            const { quarterUvps, rollingHourlyUvps, maxOverallIdx, maxMorningIdx, maxEveningIdx, maxOverallQp, totalsByType, totalDayUvp } = analysisSummary;
+
+            appState.slots.forEach((slot, idx) => {
+                if (tableFilter === 'morning' && idx >= 24) return;
+                if (tableFilter === 'evening' && idx < 24) return;
+
+                const isOverallPeak = (idx === maxOverallIdx && maxOverallQp > 0);
+                const isSubPeak = !isOverallPeak && ((idx === maxMorningIdx && analysisSummary.maxMorningQp > 0) || (idx === maxEveningIdx && analysisSummary.maxEveningQp > 0));
+
+                let rowBg = 'hover:bg-slate-50';
+                let badgeHtml = '';
+                if (isOverallPeak) {
+                    rowBg = 'bg-rose-50/90 hover:bg-rose-100/80 font-bold';
+                    badgeHtml = '<span class="block text-[10px] text-rose-700 font-extrabold">★ ذروة اليوم</span>';
+                } else if (isSubPeak) {
+                    rowBg = 'bg-amber-50/80 hover:bg-amber-100/70';
+                    badgeHtml = '<span class="block text-[10px] text-amber-700 font-bold">◆ ذروة الفترة</span>';
+                }
+
+                const rollingVal = rollingHourlyUvps[idx];
+                const rollingText = rollingVal !== null ? rollingVal.toFixed(1) : '--';
+
+                const tr = document.createElement('tr');
+                tr.className = `${rowBg} transition-smooth`;
+                tr.innerHTML = `
+                    <td class="py-2 px-3 whitespace-nowrap font-bold text-slate-800">
+                        ${slot.label}
+                        ${badgeHtml}
+                    </td>
+                    <td class="py-1.5 px-1 text-center">
+                        <input type="number" min="0" value="${slot.vl}" onchange="updateTableCell(${idx}, 'vl', this.value)"
+                            class="w-12 text-center bg-white border border-slate-200 rounded-lg py-1 font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                    </td>
+                    <td class="py-1.5 px-1 text-center">
+                        <input type="number" min="0" value="${slot.fourgon}" onchange="updateTableCell(${idx}, 'fourgon', this.value)"
+                            class="w-12 text-center bg-white border border-slate-200 rounded-lg py-1 font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                    </td>
+                    <td class="py-1.5 px-1 text-center">
+                        <input type="number" min="0" value="${slot.bus}" onchange="updateTableCell(${idx}, 'bus', this.value)"
+                            class="w-12 text-center bg-white border border-slate-200 rounded-lg py-1 font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                    </td>
+                    <td class="py-1.5 px-1 text-center">
+                        <input type="number" min="0" value="${slot.pl}" onchange="updateTableCell(${idx}, 'pl', this.value)"
+                            class="w-12 text-center bg-white border border-slate-200 rounded-lg py-1 font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                    </td>
+                    <td class="py-1.5 px-1 text-center">
+                        <input type="number" min="0" value="${slot.moto}" onchange="updateTableCell(${idx}, 'moto', this.value)"
+                            class="w-12 text-center bg-white border border-slate-200 rounded-lg py-1 font-semibold focus:ring-2 focus:ring-brand-500 outline-none">
+                    </td>
+                    <td class="py-2 px-2 text-center font-bold text-slate-700 bg-slate-50/70">
+                        ${quarterUvps[idx].toFixed(1)}
+                    </td>
+                    <td class="py-2 px-3 text-center font-extrabold ${isOverallPeak ? 'text-rose-700 bg-rose-100/70' : 'text-brand-800 bg-brand-50/50'}">
+                        ${rollingText}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // تحديث تذييل الجدول
+            document.getElementById('ft-vl').textContent = totalsByType.sumVl;
+            document.getElementById('ft-fourgon').textContent = totalsByType.sumFourgon;
+            document.getElementById('ft-bus').textContent = totalsByType.sumBus;
+            document.getElementById('ft-pl').textContent = totalsByType.sumPl;
+            document.getElementById('ft-moto').textContent = totalsByType.sumMoto;
+            document.getElementById('ft-uvp').textContent = totalDayUvp.toFixed(1);
+            document.getElementById('ft-max-qp').textContent = `ذروة: ${Math.round(maxOverallQp)}`;
+        }
+
+        function updateTableCell(idx, field, val) {
+            appState.slots[idx][field] = Math.max(0, parseInt(val) || 0);
+            saveState();
+            renderFullTable();
+            if (idx === appState.selectedPeriodIndex) {
+                renderLiveCounterCards();
+            }
+        }
+
+        // =========================================================================
+        // 8. تحديث واجهة التحليل والرسم البياني لـ 12 ساعة
+        // =========================================================================
+        function updateAnalysisUI() {
+            const s = analysisSummary;
+
+            document.getElementById('an-peak-time').textContent = s.peakHourLabel;
+            document.getElementById('an-peak-qp').textContent = Math.round(s.maxOverallQp);
+            document.getElementById('an-phf').textContent = s.phf.toFixed(2);
+
+            document.getElementById('an-morning-time').textContent = s.morningPeakLabel;
+            document.getElementById('an-morning-qp').textContent = Math.round(s.maxMorningQp);
+
+            document.getElementById('an-evening-time').textContent = s.eveningPeakLabel;
+            document.getElementById('an-evening-qp').textContent = Math.round(s.maxEveningQp);
+
+            document.getElementById('an-capacity').textContent = `${s.practicalCapacity} UVP/h`;
+            document.getElementById('an-saturation').textContent = `${s.saturation.toFixed(1)}%`;
+            document.getElementById('an-total-12h').textContent = `${Math.round(s.totalDayUvp)} UVP`;
+
+            const badge = document.getElementById('an-los-badge');
+            badge.textContent = `LOS ${s.losInfo.grade}`;
+            badge.className = `px-3.5 py-1 rounded-full text-xs font-black ${s.losInfo.badge}`;
+
+            const bar = document.getElementById('an-sat-bar');
+            bar.style.width = `${Math.min(100, Math.max(0, s.saturation))}%`;
+            bar.className = `h-full rounded-full transition-smooth ${s.losInfo.bar}`;
+
+            const recBox = document.getElementById('an-rec-box');
+            recBox.className = `mt-4 p-4 rounded-xl border transition-smooth ${s.losInfo.box}`;
+            document.getElementById('an-rec-title').textContent = s.losInfo.title;
+            document.getElementById('an-rec-text').textContent = s.losInfo.text;
+
+            updateDailyChart();
+        }
+
+        function setTerrain(type) {
+            appState.terrain = type;
+            const btnFlat = document.getElementById('btn-terrain-flat');
+            const btnMtn = document.getElementById('btn-terrain-mountain');
+
+            if (type === 'flat') {
+                btnFlat.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm transition-smooth';
+                btnMtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 transition-smooth';
+            } else {
+                btnMtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm transition-smooth';
+                btnFlat.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 transition-smooth';
+            }
+
+            saveState();
+            renderLiveCounterCards();
+            recalculateAll();
+        }
+
+        function onConfigChange() {
+            appState.baseCap = parseFloat(document.getElementById('cfg-base-cap').value) || 1400;
+            appState.lanes = parseInt(document.getElementById('cfg-lanes').value) || 1;
+            appState.obsParking = document.getElementById('cfg-obs-parking').checked;
+            appState.obsNarrow = document.getElementById('cfg-obs-narrow').checked;
+            appState.obsIntersections = document.getElementById('cfg-obs-intersections').checked;
+
+            saveState();
+            recalculateAll();
+        }
+
+        function syncConfigInputs() {
+            document.getElementById('axis-name').value = appState.axisName;
+            document.getElementById('cfg-base-cap').value = appState.baseCap;
+            document.getElementById('cfg-lanes').value = String(appState.lanes);
+            document.getElementById('cfg-obs-parking').checked = appState.
+…
+
+[Message tronqué]  Afficher l'intégralité du message
